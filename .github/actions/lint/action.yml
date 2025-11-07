@@ -22,21 +22,6 @@ inputs:
     default: ''
     required: false
 
-  composer-install:
-    description: Whether to run composer install before linting.
-    default: 'true'
-    required: false
-
-  composer-args:
-    description: Arguments passed to composer install.
-    default: '--no-interaction --prefer-dist --no-progress'
-    required: false
-
-  composer-cache-key:
-    description: Optional cache key suffix for composer dependencies.
-    default: ''
-    required: false
-
   npm-install:
     description: Whether to install Node dependencies via npm.
     default: 'true'
@@ -106,6 +91,7 @@ runs:
   using: composite
   steps:
     - name: Set up PHP
+      if: ${{ inputs.run-phpcs == 'true' }}
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ inputs.php-version }}
@@ -132,7 +118,7 @@ runs:
         cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
     - name: Cache Composer dependencies
-      if: ${{ inputs.composer-install == 'true' }}
+      if: ${{ inputs.run-phpcs == 'true' }}
       uses: actions/cache@v4
       with:
         path: |
@@ -141,12 +127,12 @@ runs:
         key: >-
           composer-${{ runner.os }}-${{ inputs.php-version }}-${{
           hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}${{
-          inputs.composer-cache-key }}
+          inputs.php-extensions }}
         restore-keys: |
           composer-${{ runner.os }}-
 
     - name: Ensure composer.lock exists
-      if: ${{ inputs.composer-install == 'true' }}
+      if: ${{ inputs.run-phpcs == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
@@ -157,12 +143,12 @@ runs:
         fi
 
     - name: Install Composer dependencies
-      if: ${{ inputs.composer-install == 'true' }}
+      if: ${{ inputs.run-phpcs == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-        composer install ${{ inputs.composer-args }}
+        composer install --no-interaction --prefer-dist --no-progress
 
     - name: Install Node dependencies
       if: ${{ inputs.npm-install == 'true' }}
