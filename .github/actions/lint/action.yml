@@ -249,7 +249,28 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-        ${{ inputs.eslint-bin }} ${{ inputs.eslint-paths }} ${{ inputs.eslint-args }}
+
+        read -r -a eslint_cmd <<< "${{ inputs.eslint-bin }}"
+        read -r -a eslint_args <<< "${{ inputs.eslint-args }}"
+        read -r -a eslint_paths <<< "${{ inputs.eslint-paths }}"
+
+        if (( ${#eslint_paths[@]} == 0 )); then
+          eslint_paths=(.)
+        fi
+
+        no_error_set=false
+        for arg in "${eslint_args[@]}"; do
+          if [[ "$arg" == '--no-error-on-unmatched-pattern' ]]; then
+            no_error_set=true
+            break
+          fi
+        done
+
+        if [[ "$no_error_set" == false ]]; then
+          eslint_args+=(--no-error-on-unmatched-pattern)
+        fi
+
+        "${eslint_cmd[@]}" "${eslint_args[@]}" "${eslint_paths[@]}"
 
     - name: Run Stylelint
       if: ${{ inputs.run-stylelint == 'true' }}
@@ -257,4 +278,25 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-        ${{ inputs.stylelint-bin }} ${{ inputs.stylelint-paths }} ${{ inputs.stylelint-args }}
+
+        read -r -a stylelint_cmd <<< "${{ inputs.stylelint-bin }}"
+        read -r -a stylelint_args <<< "${{ inputs.stylelint-args }}"
+        read -r -a stylelint_paths <<< "${{ inputs.stylelint-paths }}"
+
+        if (( ${#stylelint_paths[@]} == 0 )); then
+          stylelint_paths=(.)
+        fi
+
+        allow_empty=false
+        for arg in "${stylelint_args[@]}"; do
+          if [[ "$arg" == '--allow-empty-input' ]]; then
+            allow_empty=true
+            break
+          fi
+        done
+
+        if [[ "$allow_empty" == false ]]; then
+          stylelint_args+=(--allow-empty-input)
+        fi
+
+        "${stylelint_cmd[@]}" "${stylelint_args[@]}" "${stylelint_paths[@]}"
