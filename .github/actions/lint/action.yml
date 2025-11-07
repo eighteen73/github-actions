@@ -204,9 +204,21 @@ runs:
       if: ${{ inputs.npm-install == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        NODE_LOCK_HAS_LOCK: ${{ steps.node-lock.outputs.has-lock }}
+        NPM_INSTALL_COMMAND: ${{ inputs.npm-install-command }}
       run: |
         set -eo pipefail
-        ${{ inputs.npm-install-command }}
+        if [[ -f package.json ]]; then
+          if [[ "${NODE_LOCK_HAS_LOCK}" != 'true' && "${NPM_INSTALL_COMMAND}" == npm\ ci* ]]; then
+            echo "No npm lockfile found; falling back to 'npm install'."
+            npm install
+          else
+            eval "${NPM_INSTALL_COMMAND}"
+          fi
+        else
+          echo "package.json not found; skipping Node install step."
+        fi
 
     - name: Run PHPCS
       if: ${{ inputs.run-phpcs == 'true' }}
