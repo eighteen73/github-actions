@@ -82,19 +82,9 @@ inputs:
     default: 'true'
     required: false
 
-  eslint-bin:
-    description: Command used to invoke ESLint.
-    default: 'npx eslint'
-    required: false
-
-  eslint-args:
-    description: Extra arguments for ESLint.
-    default: '--max-warnings=0'
-    required: false
-
-  eslint-paths:
-    description: Space-separated list of paths to lint with ESLint.
-    default: 'src/**/*.{js,jsx,ts,tsx}'
+  eslint-command:
+    description: Command executed to run JavaScript linting.
+    default: 'npm run lint:js'
     required: false
 
   run-eslint:
@@ -102,19 +92,9 @@ inputs:
     default: 'true'
     required: false
 
-  stylelint-bin:
-    description: Command used to invoke Stylelint.
-    default: 'npx stylelint'
-    required: false
-
-  stylelint-args:
-    description: Extra arguments for Stylelint.
-    default: ''
-    required: false
-
-  stylelint-paths:
-    description: Space-separated list of paths to lint with Stylelint.
-    default: 'src/**/*.{scss,css}'
+  stylelint-command:
+    description: Command executed to run CSS linting.
+    default: 'npm run lint:css'
     required: false
 
   run-stylelint:
@@ -133,50 +113,23 @@ runs:
         ini-values: ${{ inputs.php-ini-values }}
         coverage: none
 
-    - name: Detect Node dependency files
-      id: node-lock
+    - name: Ensure package-lock.json exists
+      if: ${{ inputs.npm-install == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      env:
-        WORKING_DIR: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-
-        paths=()
-        for file in package-lock.json npm-shrinkwrap.json; do
-          if [[ -f "$file" ]]; then
-            if [[ "$WORKING_DIR" == '.' ]]; then
-              paths+=("$file")
-            else
-              paths+=("$WORKING_DIR/$file")
-            fi
-          fi
-        done
-
-        if (( ${#paths[@]} )); then
-          {
-            echo "paths<<EOF"
-            printf '%s\n' "${paths[@]}"
-            echo "EOF"
-            echo "has-lock=true"
-          } >> "$GITHUB_OUTPUT"
-        else
-          echo "has-lock=false" >> "$GITHUB_OUTPUT"
+        if [[ ! -f package-lock.json ]]; then
+          echo "package-lock.json not found in $PWD. Commit your lockfile before running this action." >&2
+          exit 1
         fi
 
-    - name: Set up Node.js (cached)
-      if: ${{ steps.node-lock.outputs.has-lock == 'true' }}
+    - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
-        cache-dependency-path: ${{ steps.node-lock.outputs.paths }}
-
-    - name: Set up Node.js
-      if: ${{ steps.node-lock.outputs.has-lock != 'true' }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ inputs.node-version }}
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
     - name: Cache Composer dependencies
       if: ${{ inputs.composer-install == 'true' }}
@@ -192,6 +145,17 @@ runs:
         restore-keys: |
           composer-${{ runner.os }}-
 
+    - name: Ensure composer.lock exists
+      if: ${{ inputs.composer-install == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        if [[ ! -f composer.lock ]]; then
+          echo "composer.lock not found in $PWD. Commit your lockfile before running this action." >&2
+          exit 1
+        fi
+
     - name: Install Composer dependencies
       if: ${{ inputs.composer-install == 'true' }}
       shell: bash
@@ -204,21 +168,13 @@ runs:
       if: ${{ inputs.npm-install == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      env:
-        NODE_LOCK_HAS_LOCK: ${{ steps.node-lock.outputs.has-lock }}
-        NPM_INSTALL_COMMAND: ${{ inputs.npm-install-command }}
       run: |
         set -eo pipefail
-        if [[ -f package.json ]]; then
-          if [[ "${NODE_LOCK_HAS_LOCK}" != 'true' && "${NPM_INSTALL_COMMAND}" == npm\ ci* ]]; then
-            echo "No npm lockfile found; falling back to 'npm install'."
-            npm install
-          else
-            eval "${NPM_INSTALL_COMMAND}"
-          fi
-        else
-          echo "package.json not found; skipping Node install step."
+        if [[ ! -f package.json ]]; then
+          echo "package.json not found in $PWD. Cannot install Node dependencies." >&2
+          exit 1
         fi
+        eval "${{ inputs.npm-install-command }}"
 
     - name: Run PHPCS
       if: ${{ inputs.run-phpcs == 'true' }}
@@ -249,28 +205,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-
-        read -r -a eslint_cmd <<< "${{ inputs.eslint-bin }}"
-        read -r -a eslint_args <<< "${{ inputs.eslint-args }}"
-        read -r -a eslint_paths <<< "${{ inputs.eslint-paths }}"
-
-        if (( ${#eslint_paths[@]} == 0 )); then
-          eslint_paths=(.)
-        fi
-
-        no_error_set=false
-        for arg in "${eslint_args[@]}"; do
-          if [[ "$arg" == '--no-error-on-unmatched-pattern' ]]; then
-            no_error_set=true
-            break
-          fi
-        done
-
-        if [[ "$no_error_set" == false ]]; then
-          eslint_args+=(--no-error-on-unmatched-pattern)
-        fi
-
-        "${eslint_cmd[@]}" "${eslint_args[@]}" "${eslint_paths[@]}"
+        eval "${{ inputs.eslint-command }}"
 
     - name: Run Stylelint
       if: ${{ inputs.run-stylelint == 'true' }}
@@ -278,25 +213,4 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -eo pipefail
-
-        read -r -a stylelint_cmd <<< "${{ inputs.stylelint-bin }}"
-        read -r -a stylelint_args <<< "${{ inputs.stylelint-args }}"
-        read -r -a stylelint_paths <<< "${{ inputs.stylelint-paths }}"
-
-        if (( ${#stylelint_paths[@]} == 0 )); then
-          stylelint_paths=(.)
-        fi
-
-        allow_empty=false
-        for arg in "${stylelint_args[@]}"; do
-          if [[ "$arg" == '--allow-empty-input' ]]; then
-            allow_empty=true
-            break
-          fi
-        done
-
-        if [[ "$allow_empty" == false ]]; then
-          stylelint_args+=(--allow-empty-input)
-        fi
-
-        "${stylelint_cmd[@]}" "${stylelint_args[@]}" "${stylelint_paths[@]}"
+        eval "${{ inputs.stylelint-command }}"
