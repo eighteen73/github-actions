@@ -1,0 +1,212 @@
+name: Lint Suite
+description: Run PHPCS, ESLint, and Stylelint with shared defaults tuned for WordPress projects.
+
+inputs:
+  working-directory:
+    description: Optional path to run commands from.
+    default: .
+    required: false
+
+  php-version:
+    description: PHP version to install via setup-php.
+    default: '8.3'
+    required: false
+
+  php-extensions:
+    description: Additional PHP extensions to enable (comma-separated list).
+    default: ''
+    required: false
+
+  php-ini-values:
+    description: Extra php.ini values (comma-separated key=value pairs).
+    default: ''
+    required: false
+
+  composer-install:
+    description: Whether to run composer install before linting.
+    default: 'true'
+    required: false
+
+  composer-args:
+    description: Arguments passed to composer install.
+    default: '--no-interaction --prefer-dist --no-progress'
+    required: false
+
+  composer-cache-key:
+    description: Optional cache key suffix for composer dependencies.
+    default: ''
+    required: false
+
+  npm-install:
+    description: Whether to install Node dependencies via npm.
+    default: 'true'
+    required: false
+
+  npm-install-command:
+    description: Command used to install Node dependencies (e.g. npm ci).
+    default: 'npm ci'
+    required: false
+
+  node-version:
+    description: Node.js version to provision via setup-node.
+    default: '24'
+    required: false
+
+  npm-cache-key:
+    description: Optional cache key suffix for Node dependencies.
+    default: ''
+    required: false
+
+  phpcs-bin:
+    description: Path to the PHPCS executable.
+    default: 'vendor/bin/phpcs'
+    required: false
+
+  phpcs-standard:
+    description: Coding standard passed to PHPCS (leave empty to rely on project ruleset discovery).
+    default: ''
+    required: false
+
+  phpcs-args:
+    description: Additional PHPCS arguments.
+    default: '--report=full'
+    required: false
+
+  phpcs-paths:
+    description: Space-separated list of paths to scan with PHPCS.
+    default: '.'
+    required: false
+
+  run-phpcs:
+    description: Set to false to skip PHPCS execution.
+    default: 'true'
+    required: false
+
+  eslint-bin:
+    description: Command used to invoke ESLint.
+    default: 'npx eslint'
+    required: false
+
+  eslint-args:
+    description: Extra arguments for ESLint.
+    default: '--max-warnings=0'
+    required: false
+
+  eslint-paths:
+    description: Space-separated list of paths to lint with ESLint.
+    default: 'src/**/*.{js,jsx,ts,tsx}'
+    required: false
+
+  run-eslint:
+    description: Set to false to skip ESLint execution.
+    default: 'true'
+    required: false
+
+  stylelint-bin:
+    description: Command used to invoke Stylelint.
+    default: 'npx stylelint'
+    required: false
+
+  stylelint-args:
+    description: Extra arguments for Stylelint.
+    default: ''
+    required: false
+
+  stylelint-paths:
+    description: Space-separated list of paths to lint with Stylelint.
+    default: 'src/**/*.{scss,css}'
+    required: false
+
+  run-stylelint:
+    description: Set to false to skip Stylelint execution.
+    default: 'true'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: ${{ inputs.php-extensions }}
+        ini-values: ${{ inputs.php-ini-values }}
+        coverage: none
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: |
+          ${{ inputs.working-directory }}/package-lock.json
+          ${{ inputs.working-directory }}/npm-shrinkwrap.json
+
+    - name: Cache Composer dependencies
+      if: ${{ inputs.composer-install == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ inputs.working-directory }}/vendor
+          ~/.composer/cache
+        key: >-
+          composer-${{ runner.os }}-${{ inputs.php-version }}-${{
+          hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}${{
+          inputs.composer-cache-key }}
+        restore-keys: |
+          composer-${{ runner.os }}-
+
+    - name: Install Composer dependencies
+      if: ${{ inputs.composer-install == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        composer install ${{ inputs.composer-args }}
+
+    - name: Install Node dependencies
+      if: ${{ inputs.npm-install == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        ${{ inputs.npm-install-command }}
+
+    - name: Run PHPCS
+      if: ${{ inputs.run-phpcs == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+
+        declare -a cmd=("${{ inputs.phpcs-bin }}")
+
+        if [[ -n "${{ inputs.phpcs-standard }}" ]]; then
+          cmd+=("--standard=${{ inputs.phpcs-standard }}")
+        fi
+
+        if [[ -n "${{ inputs.phpcs-args }}" ]]; then
+          cmd+=(${{ inputs.phpcs-args }})
+        fi
+
+        if [[ -n "${{ inputs.phpcs-paths }}" ]]; then
+          cmd+=(${{ inputs.phpcs-paths }})
+        fi
+
+        "${cmd[@]}"
+
+    - name: Run ESLint
+      if: ${{ inputs.run-eslint == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        ${{ inputs.eslint-bin }} ${{ inputs.eslint-paths }} ${{ inputs.eslint-args }}
+
+    - name: Run Stylelint
+      if: ${{ inputs.run-stylelint == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        ${{ inputs.stylelint-bin }} ${{ inputs.stylelint-paths }} ${{ inputs.stylelint-args }}
