@@ -133,14 +133,50 @@ runs:
         ini-values: ${{ inputs.php-ini-values }}
         coverage: none
 
-    - name: Set up Node.js
+    - name: Detect Node dependency files
+      id: node-lock
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+
+        paths=()
+        for file in package-lock.json npm-shrinkwrap.json; do
+          if [[ -f "$file" ]]; then
+            if [[ "$WORKING_DIR" == '.' ]]; then
+              paths+=("$file")
+            else
+              paths+=("$WORKING_DIR/$file")
+            fi
+          fi
+        done
+
+        if (( ${#paths[@]} )); then
+          {
+            echo "paths<<EOF"
+            printf '%s\n' "${paths[@]}"
+            echo "EOF"
+            echo "has-lock=true"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "has-lock=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Node.js (cached)
+      if: ${{ steps.node-lock.outputs.has-lock == 'true' }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
-        cache-dependency-path: |
-          ${{ inputs.working-directory }}/package-lock.json
-          ${{ inputs.working-directory }}/npm-shrinkwrap.json
+        cache-dependency-path: ${{ steps.node-lock.outputs.paths }}
+
+    - name: Set up Node.js
+      if: ${{ steps.node-lock.outputs.has-lock != 'true' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
 
     - name: Cache Composer dependencies
       if: ${{ inputs.composer-install == 'true' }}
