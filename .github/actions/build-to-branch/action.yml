@@ -1,25 +1,21 @@
 name: Build to branch
-description: Build source branch and update release branch containing only built/release files.
+description: Merge and build a source branch into a releasable, fully-built branch. Maintains branch history and force-commits gitignore'd built files.
 
 inputs:
   source_branch:
     description: Name of source branch.
     default: main
   release_branch:
-    description: Name of target release branch.
+    description: Name of target release branch. Will be updated with a merge commit including built code.
     default: release
+  built_asset_paths:
+    description: Generated assets to forcibly include in release branch commit. Overrides .gitignore.
+    required: true
   build_script:
     description: Command to run to build code. "npm ci; npm run build" by default.
     default: |
       npm ci
       npm run build
-    required: false
-  built_asset_paths:
-    description: Paths or directories to include in the release branch (built assets)
-    required: true
-  extra_files:
-    description: Optional extra files from the source branch to include (e.g., README.md, LICENSE.md)
-    default: ""
     required: false
   commit_user_name:
     description: Name to use for release branch commit author.
@@ -40,69 +36,49 @@ runs:
         git config user.name "${{ inputs.commit_user_name }}"
         git config user.email "${{ inputs.commit_user_email }}"
 
-    - name: Checkout source branch
-      uses: actions/checkout@v5
+    - name: Check out release branch
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       with:
-        ref: ${{ inputs.source_branch }}
+        ref: ${{ inputs.release_branch }}
         fetch-depth: 0
 
-    - name: Run build
+    - name: Merge source into release branch
+      shell: bash
+      # Simulate "-s theirs", which doesn't exist in git for sensible reasons
+      # which do not apply to our current situation.
+      # https://web.archive.org/web/20131126171744/http://www.seanius.net/blog/2011/02/git-merge-s-theirs/
+      run: |
+        git fetch origin '${{ inputs.source_branch }}'
+        git fetch origin '${{ inputs.release_branch }}'
+        git checkout '${{ inputs.source_branch }}'
+        git checkout '${{ inputs.release_branch }}'
+        git merge -s ours '${{ inputs.source_branch }}'
+        git diff --binary '${{ inputs.source_branch }}' | git apply -R --index
+        git commit --amend -m "Merge branch '${{ inputs.source_branch }}' into '${{ inputs.release_branch }}'"
+
+    - name: Build code
       shell: bash
       run: ${{ inputs.build_script }}
 
-    - name: Checkout or create release branch
+    - name: Update release branch (remove export-ignore)
       shell: bash
       run: |
-        git fetch origin ${{ inputs.release_branch }} || true
-        if git rev-parse --verify origin/${{ inputs.release_branch }} >/dev/null 2>&1; then
-          git checkout ${{ inputs.release_branch }}
-        else
-          git checkout --orphan ${{ inputs.release_branch }}
-        fi
-
-        # Remove all tracked files
-        git rm -r --cached . || true
-
-        # Remove all files except .git
-        find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
-
-    - name: Copy built assets to release branch
-      shell: bash
-      run: |
-        shopt -s dotglob nullglob
-        for path in ${{ inputs.built_asset_paths }}; do
-          if [ -e "$path" ]; then
-            cp -r "$path" .
-            echo "Copied built asset: $path"
-          else
-            echo "Warning: built asset path '$path' does not exist."
-          fi
-        done
-
-        echo "Contents of release branch after copying built assets:"
-        ls -al
-
-    - name: Copy extra files (optional)
-      shell: bash
-      run: |
-        if [ -n "${{ inputs.extra_files }}" ]; then
-          shopt -s dotglob nullglob
-          for f in ${{ inputs.extra_files }}; do
-            if [ -e "$f" ]; then
-              cp -r "$f" .
-              echo "Copied extra file: $f"
-            else
-              echo "Warning: extra file '$f' does not exist."
+        # Remove files listed in .gitattributes with export-ignore
+        if [ -f .gitattributes ]; then
+          grep 'export-ignore' .gitattributes | while read -r line; do
+            # extract path before space
+            path="${line%% *}"
+            # remove leading slash if present
+            path="${path#/}"
+            if [ -e "$path" ]; then
+              echo "Removing $path as marked by .gitattributes"
+              git rm -rf "$path" || true
             fi
           done
         fi
 
-        echo "Contents of release branch after copying extra files:"
-        ls -al
+        # Force-add built assets again (in case .gitattributes removed some)
+        git add -f ${{ inputs.built_asset_paths }}
 
-    - name: Commit and push release
-      shell: bash
-      run: |
-        git add .
-        git commit -m "Build release from ${{ inputs.source_branch }}#$(git rev-parse --short ${{ inputs.source_branch }})" || echo "Nothing to commit"
-        git push origin ${{ inputs.release_branch }}:${{ inputs.release_branch }}
+        git commit --amend -m "Build to '${{ inputs.release_branch }}' from ${{ inputs.source_branch }}#$( git rev-parse --short ${{ inputs.source_branch }} )"
+        git push origin '${{ inputs.release_branch }}':'${{ inputs.release_branch }}'
