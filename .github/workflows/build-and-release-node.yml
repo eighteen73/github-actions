@@ -55,6 +55,9 @@ jobs:
           node-version: ${{ inputs.node_version }}
           cache: 'npm'
 
+      - name: Lint Suite
+        uses: eighteen73/github-actions/.github/actions/lint@main
+
       - name: Merge and build
         uses: eighteen73/github-actions/.github/actions/build-to-branch@main
         with:
