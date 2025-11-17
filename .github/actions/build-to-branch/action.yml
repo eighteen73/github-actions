@@ -1,16 +1,13 @@
 name: Build to branch
-description: Merge and build a source branch into a releasable, fully-built branch. Maintains branch history and force-commits gitignore'd built files.
+description: Build source branch and update release branch containing only exported files (respects .gitattributes export-ignore).
 
 inputs:
   source_branch:
     description: Name of source branch.
     default: main
   release_branch:
-    description: Name of target release branch. Will be updated with a merge commit including built code.
+    description: Name of target release branch.
     default: release
-  built_asset_paths:
-    description: Generated assets to forcibly include in release branch commit. Overrides .gitignore.
-    required: true
   build_script:
     description: Command to run to build code. "npm ci; npm run build" by default.
     default: |
@@ -36,33 +33,44 @@ runs:
         git config user.name "${{ inputs.commit_user_name }}"
         git config user.email "${{ inputs.commit_user_email }}"
 
-    - name: Check out release branch
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - name: Checkout source branch
+      uses: actions/checkout@v5
       with:
-        ref: ${{ inputs.release_branch }}
+        ref: ${{ inputs.source_branch }}
         fetch-depth: 0
-
-    - name: Merge source into release branch
-      shell: bash
-      # Simulate "-s theirs", which doesn't exist in git for sensible reasons
-      # which do not apply to our current situation.
-      # https://web.archive.org/web/20131126171744/http://www.seanius.net/blog/2011/02/git-merge-s-theirs/
-      run: |
-        git fetch origin '${{ inputs.source_branch }}'
-        git fetch origin '${{ inputs.release_branch }}'
-        git checkout '${{ inputs.source_branch }}'
-        git checkout '${{ inputs.release_branch }}'
-        git merge -s ours '${{ inputs.source_branch }}'
-        git diff --binary '${{ inputs.source_branch }}' | git apply -R --index
-        git commit --amend -m "Merge branch '${{ inputs.source_branch }}' into '${{ inputs.release_branch }}'"
 
     - name: Build code
       shell: bash
       run: ${{ inputs.build_script }}
 
-    - name: Update release branch
+    - name: Create export archive (respects .gitattributes)
       shell: bash
       run: |
-        git add -f ${{ inputs.built_asset_paths }}
-        git commit --amend -m "Build to '${{ inputs.release_branch }}' from ${{ inputs.source_branch }}#$( git rev-parse --short ${{ inputs.source_branch }} )"
-        git push origin '${{ inputs.release_branch }}':'${{ inputs.release_branch }}'
+        git archive --format=tar HEAD > export.tar
+
+    - name: Extract exported files
+      shell: bash
+      run: |
+        mkdir export
+        tar -xf export.tar -C export
+
+    - name: Checkout release branch
+      shell: bash
+      run: |
+        git fetch origin ${{ inputs.release_branch }}
+        git checkout ${{ inputs.release_branch }}
+        # Remove all existing files in the release branch
+        git rm -r --ignore-unmatch .
+
+    - name: Copy exported files to release branch
+      shell: bash
+      run: |
+        cp -r export/* .
+        cp -r export/.[!.]* . || true  # copy hidden files if any
+
+    - name: Commit and push release
+      shell: bash
+      run: |
+        git add .
+        git commit -m "Build release from ${{ inputs.source_branch }}#$(git rev-parse --short ${{ inputs.source_branch }})" || echo "Nothing to commit"
+        git push origin ${{ inputs.release_branch }}:${{ inputs.release_branch }}
