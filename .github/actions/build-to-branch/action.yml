@@ -1,5 +1,5 @@
 name: Build to branch
-description: Build source branch and update release branch containing only exported files (respects .gitattributes export-ignore).
+description: Build source branch and update release branch containing only built/release files.
 
 inputs:
   source_branch:
@@ -13,6 +13,13 @@ inputs:
     default: |
       npm ci
       npm run build
+    required: false
+  built_asset_paths:
+    description: Paths or directories to include in the release branch (built assets)
+    required: true
+  extra_files:
+    description: Optional extra files from the source branch to include (e.g., README.md, LICENSE.md)
+    default: ""
     required: false
   commit_user_name:
     description: Name to use for release branch commit author.
@@ -39,15 +46,9 @@ runs:
         ref: ${{ inputs.source_branch }}
         fetch-depth: 0
 
-    - name: Build code
+    - name: Run build
       shell: bash
       run: ${{ inputs.build_script }}
-
-    - name: Create export archive (respects .gitattributes)
-      shell: bash
-      run: |
-        mkdir -p /tmp/export
-        git archive --format=tar HEAD > /tmp/export/export.tar
 
     - name: Checkout or create release branch
       shell: bash
@@ -65,15 +66,31 @@ runs:
         # Remove all files except .git
         find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
 
-    - name: Extract exported files into release branch
+    - name: Copy built assets to release branch
       shell: bash
       run: |
-        mkdir tmp_export
-        tar -xf /tmp/export/export.tar -C tmp_export
-        # Safely copy files including hidden ones
         shopt -s dotglob nullglob
-        cp -r tmp_export/* .
-        rm -rf tmp_export /tmp/export/export.tar
+        for path in ${{ inputs.built_asset_paths }}; do
+          if [ -e "$path" ]; then
+            cp -r "$path" .
+          else
+            echo "Warning: built asset path '$path' does not exist."
+          fi
+        done
+
+    - name: Copy extra files (optional)
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.extra_files }}" ]; then
+          shopt -s dotglob nullglob
+          for f in ${{ inputs.extra_files }}; do
+            if [ -e "$f" ]; then
+              cp -r "$f" .
+            else
+              echo "Warning: extra file '$f' does not exist."
+            fi
+          done
+        fi
 
     - name: Commit and push release
       shell: bash
