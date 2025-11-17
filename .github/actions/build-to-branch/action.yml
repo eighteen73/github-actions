@@ -48,25 +48,27 @@ runs:
       run: |
         git archive --format=tar HEAD > export.tar
 
-    - name: Extract exported files
+    - name: Checkout or create release branch
       shell: bash
       run: |
-        mkdir export
-        tar -xf export.tar -C export
+        git fetch origin ${{ inputs.release_branch }} || true
+        if git rev-parse --verify origin/${{ inputs.release_branch }} >/dev/null 2>&1; then
+          git checkout ${{ inputs.release_branch }}
+        else
+          git checkout --orphan ${{ inputs.release_branch }}
+        fi
+        # Remove all files currently tracked
+        git rm -r --cached . || true
+        rm -rf * .[!.]* || true
 
-    - name: Checkout release branch
+    - name: Extract exported files into release branch
       shell: bash
       run: |
-        git fetch origin ${{ inputs.release_branch }}
-        git checkout ${{ inputs.release_branch }}
-        # Remove all existing files in the release branch
-        git rm -r --ignore-unmatch .
-
-    - name: Copy exported files to release branch
-      shell: bash
-      run: |
-        cp -r export/* .
-        cp -r export/.[!.]* . || true  # copy hidden files if any
+        mkdir tmp_export
+        tar -xf export.tar -C tmp_export
+        cp -r tmp_export/* .
+        cp -r tmp_export/.[!.]* . || true  # copy hidden files if any
+        rm -rf tmp_export export.tar
 
     - name: Commit and push release
       shell: bash
