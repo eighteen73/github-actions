@@ -58,17 +58,21 @@ runs:
         else
           git checkout --orphan ${{ inputs.release_branch }}
         fi
-        # Remove all files currently tracked
+
+        # Remove all tracked files
         git rm -r --cached . || true
-        rm -rf * .[!.]* || true
+
+        # Remove all files except .git
+        find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
 
     - name: Extract exported files into release branch
       shell: bash
       run: |
         mkdir tmp_export
         tar -xf /tmp/export/export.tar -C tmp_export
+        # Safely copy files including hidden ones
+        shopt -s dotglob nullglob
         cp -r tmp_export/* .
-        cp -r tmp_export/.[!.]* . || true  # copy hidden files if any
         rm -rf tmp_export /tmp/export/export.tar
 
     - name: Commit and push release
