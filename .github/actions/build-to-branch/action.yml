@@ -73,10 +73,14 @@ runs:
         for path in ${{ inputs.built_asset_paths }}; do
           if [ -e "$path" ]; then
             cp -r "$path" .
+            echo "Copied built asset: $path"
           else
             echo "Warning: built asset path '$path' does not exist."
           fi
         done
+
+        echo "Contents of release branch after copying built assets:"
+        ls -al
 
     - name: Copy extra files (optional)
       shell: bash
@@ -86,11 +90,15 @@ runs:
           for f in ${{ inputs.extra_files }}; do
             if [ -e "$f" ]; then
               cp -r "$f" .
+              echo "Copied extra file: $f"
             else
               echo "Warning: extra file '$f' does not exist."
             fi
           done
         fi
+
+        echo "Contents of release branch after copying extra files:"
+        ls -al
 
     - name: Commit and push release
       shell: bash
