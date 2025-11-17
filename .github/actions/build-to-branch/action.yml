@@ -46,7 +46,8 @@ runs:
     - name: Create export archive (respects .gitattributes)
       shell: bash
       run: |
-        git archive --format=tar HEAD > export.tar
+        mkdir -p /tmp/export
+        git archive --format=tar HEAD > /tmp/export/export.tar
 
     - name: Checkout or create release branch
       shell: bash
@@ -65,10 +66,10 @@ runs:
       shell: bash
       run: |
         mkdir tmp_export
-        tar -xf export.tar -C tmp_export
+        tar -xf /tmp/export/export.tar -C tmp_export
         cp -r tmp_export/* .
         cp -r tmp_export/.[!.]* . || true  # copy hidden files if any
-        rm -rf tmp_export export.tar
+        rm -rf tmp_export /tmp/export/export.tar
 
     - name: Commit and push release
       shell: bash
