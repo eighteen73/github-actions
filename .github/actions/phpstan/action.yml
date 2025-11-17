@@ -1,0 +1,113 @@
+name: PHPStan Analysis
+description: Execute PHPStan with defaults tuned for WordPress projects and configurable parameters.
+
+inputs:
+  working-directory:
+    description: Optional path to run commands from.
+    default: .
+    required: false
+
+  php-version:
+    description: PHP version provisioned via setup-php.
+    default: '8.3'
+    required: false
+
+  php-extensions:
+    description: Additional PHP extensions (comma-separated list).
+    default: ''
+    required: false
+
+  php-ini-values:
+    description: Extra php.ini values (comma-separated key=value pairs).
+    default: 'memory_limit=-1'
+    required: false
+
+  composer-install:
+    description: Whether to run composer install before analysis.
+    default: 'true'
+    required: false
+
+  composer-args:
+    description: Arguments supplied to composer install.
+    default: '--no-interaction --prefer-dist --no-progress'
+    required: false
+
+  composer-cache-key:
+    description: Optional cache key suffix for composer dependencies.
+    default: ''
+    required: false
+
+  phpstan-bin:
+    description: Path to the PHPStan executable.
+    default: 'vendor/bin/phpstan'
+    required: false
+
+  phpstan-config:
+    description: Path to PHPStan configuration file.
+    default: 'phpstan.neon.dist'
+    required: false
+
+  phpstan-level:
+    description: PHPStan rule level to enforce (empty string respects config).
+    default: ''
+    required: false
+
+  phpstan-memory-limit:
+    description: Memory limit passed to PHPStan (e.g. 1G).
+    default: '1G'
+    required: false
+
+  phpstan-paths:
+    description: Space-separated list of paths to analyse.
+    default: 'src'
+    required: false
+
+  phpstan-error-format:
+    description: --error-format value for PHPStan output.
+    default: 'table'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: ${{ inputs.php-extensions }}
+        ini-values: ${{ inputs.php-ini-values }}
+        coverage: none
+
+    - name: Cache Composer dependencies
+      if: ${{ inputs.composer-install == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ inputs.working-directory }}/vendor
+          ~/.composer/cache
+        key: >-
+          composer-${{ runner.os }}-${{ inputs.php-version }}-${{
+          hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}${{
+          inputs.composer-cache-key }}
+        restore-keys: |
+          composer-${{ runner.os }}-
+
+    - name: Install Composer dependencies
+      if: ${{ inputs.composer-install == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        composer install ${{ inputs.composer-args }}
+
+    - name: Run PHPStan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -eo pipefail
+        ${{ inputs.phpstan-bin }} analyse \
+          --configuration="${{ inputs.phpstan-config }}" \
+          ${{ inputs.phpstan-level != '' && format('--level={0}', inputs.phpstan-level) || '' }} \
+          --memory-limit="${{ inputs.phpstan-memory-limit }}" \
+          --error-format="${{ inputs.phpstan-error-format }}" \
+          ${{ inputs.phpstan-paths }}
