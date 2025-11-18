@@ -71,7 +71,7 @@ runs:
         git push origin "${{ steps.version.outputs.tag }}"
 
     - name: Create GitHub Release
-      uses: ncipollo/release-action@v1
+      uses: ncipollo/release-action@cdcc88a9acf3ca41c16c37bb7d21b9ad48560d87
       with:
         tag: ${{ steps.version.outputs.tag }}
         name: ${{ steps.version.outputs.tag }}
