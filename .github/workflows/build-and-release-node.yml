@@ -28,7 +28,7 @@ on:
         type: string
       commit_user_name:
         description: Name to use for release branch commit author.
-        default: "Your friendly neighborhood GH Actions Bot"
+        default: "eighteen73"
         required: false
         type: string
       commit_user_email:
