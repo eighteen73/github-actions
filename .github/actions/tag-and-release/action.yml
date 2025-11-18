@@ -1,0 +1,79 @@
+name: "Tag and Release"
+description: "Creates a git tag and GitHub release based on version inside a WordPress plugin header."
+
+inputs:
+  plugin_file:
+    description: "Path to the main WordPress plugin file containing the Version header."
+    required: true
+
+  target_branch:
+    description: "Branch to tag (e.g., release)."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Extract version from plugin file
+      id: version
+      shell: bash
+      run: |
+        FILE="${{ inputs.plugin_file }}"
+
+        if [ ! -f "$FILE" ]; then
+          echo "Plugin file '$FILE' not found!"
+          exit 1
+        fi
+
+        # Extract the version from the header
+        VERSION=$(grep -Ei '^ \* Version:' "$FILE" | sed -E 's/.*Version:[[:space:]]*//')
+
+        if [ -z "$VERSION" ]; then
+          echo "Could not extract version from $FILE"
+          exit 1
+        fi
+
+        # Prefix with "v" for tags
+        TAG="v$VERSION"
+
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+    - name: Check if tag already exists
+      id: check_tag
+      shell: bash
+      run: |
+        if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+          echo "Tag already exists"
+          echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Abort if tag exists
+      if: steps.check_tag.outputs.tag_exists == 'true'
+      shell: bash
+      run: exit 1
+
+    - name: Create and push tag
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin ${{ inputs.target_branch }}
+        git checkout ${{ inputs.target_branch }}
+
+        git tag "${{ steps.version.outputs.tag }}"
+        git push origin "${{ steps.version.outputs.tag }}"
+
+    - name: Create GitHub Release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ steps.version.outputs.tag }}
+        name: ${{ steps.version.outputs.tag }}
+        body: "Automated release of version ${{ steps.version.outputs.version }}"
+        draft: false
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}

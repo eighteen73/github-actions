@@ -40,6 +40,10 @@ on:
         required: false
         default: 22
         type: number
+      plugin_file:
+        description: Path to main WordPress plugin file (for tagging)
+        required: true
+        type: string
 
 jobs:
   build-and-release:
@@ -67,3 +71,9 @@ jobs:
           build_script: ${{ inputs.build_script }}
           commit_user_name: ${{ inputs.commit_user_name }}
           commit_user_email: ${{ inputs.commit_user_email }}
+
+      - name: Tag and release
+        uses: eighteen73/github-actions/.github/actions/tag-and-release@main
+        with:
+          target_branch: ${{ inputs.release_branch }}
+          plugin_file: ${{ inputs.plugin_file }}
