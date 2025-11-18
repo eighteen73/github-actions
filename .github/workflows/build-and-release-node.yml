@@ -77,3 +77,4 @@ jobs:
         with:
           target_branch: ${{ inputs.release_branch }}
           plugin_file: ${{ inputs.plugin_file }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -5,9 +5,11 @@ inputs:
   plugin_file:
     description: "Path to the main WordPress plugin file containing the Version header."
     required: true
-
   target_branch:
     description: "Branch to tag (e.g., release)."
+    required: true
+  github_token:
+    description: "GitHub token for creating tags and releases"
     required: true
 
 runs:
@@ -76,4 +78,4 @@ runs:
         body: "Automated release of version ${{ steps.version.outputs.version }}"
         draft: false
         prerelease: false
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ inputs.github_token }}
