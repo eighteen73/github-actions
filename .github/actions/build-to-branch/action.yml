@@ -36,10 +36,10 @@ runs:
         git config user.name "${{ inputs.commit_user_name }}"
         git config user.email "${{ inputs.commit_user_email }}"
 
-    - name: Check out branch
+    - name: Check out release branch
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       with:
-        ref: ${{ inputs.source_branch }}
+        ref: ${{ inputs.release_branch }}
         fetch-depth: 0
 
     - name: Merge source into release branch
@@ -49,15 +49,9 @@ runs:
       # https://web.archive.org/web/20131126171744/http://www.seanius.net/blog/2011/02/git-merge-s-theirs/
       run: |
         git fetch origin '${{ inputs.source_branch }}'
-        git fetch origin '${{ inputs.release_branch }}' || true
-
-        if git show-ref --verify --quiet "refs/remotes/origin/${{ inputs.release_branch }}"; then
-          git checkout -B '${{ inputs.release_branch }}' "origin/${{ inputs.release_branch }}"
-        else
-          echo "Release branch '${{ inputs.release_branch }}' not found on remote. Creating from '${{ inputs.source_branch }}'."
-          git checkout -B '${{ inputs.release_branch }}' '${{ inputs.source_branch }}'
-        fi
-
+        git fetch origin '${{ inputs.release_branch }}'
+        git checkout '${{ inputs.source_branch }}'
+        git checkout '${{ inputs.release_branch }}'
         git merge -s ours '${{ inputs.source_branch }}'
         git diff --binary '${{ inputs.source_branch }}' | git apply -R --index
         git commit --amend -m "Merge branch '${{ inputs.source_branch }}' into '${{ inputs.release_branch }}'"
