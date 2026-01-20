@@ -44,6 +44,32 @@ on:
         description: Path to main WordPress plugin file (for tagging)
         required: true
         type: string
+      php_version:
+        description: PHP version to install via setup-php.
+        default: '8.3'
+        required: false
+        type: string
+      php_extensions:
+        description: Additional PHP extensions to enable (comma-separated list).
+        default: ''
+        required: false
+        type: string
+      php_ini_values:
+        description: Extra php.ini values (comma-separated key=value pairs).
+        default: ''
+        required: false
+        type: string
+      run_composer_install:
+        description: Set to true to run composer install.
+        default: 'false'
+        required: false
+        type: string
+      composer_script:
+        description: Command to run to install Composer dependencies.
+        default: |
+          composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+        required: false
+        type: string
 
 jobs:
   build-and-release:
@@ -71,6 +97,11 @@ jobs:
           build_script: ${{ inputs.build_script }}
           commit_user_name: ${{ inputs.commit_user_name }}
           commit_user_email: ${{ inputs.commit_user_email }}
+          php_version: ${{ inputs.php_version }}
+          php_extensions: ${{ inputs.php_extensions }}
+          php_ini_values: ${{ inputs.php_ini_values }}
+          run_composer_install: ${{ inputs.run_composer_install }}
+          composer_script: ${{ inputs.composer_script }}
 
       - name: Tag and release
         uses: eighteen73/github-actions/.github/actions/tag-and-release@main
