@@ -5,22 +5,53 @@ inputs:
   source_branch:
     description: Name of source branch.
     default: main
+
   release_branch:
     description: Name of target release branch. Will be updated with a merge commit including built code.
     default: release
+
   built_asset_paths:
     description: Generated assets to forcibly include in release branch commit. Overrides .gitignore.
     required: true
+
   build_script:
     description: Command to run to build code. "npm ci; npm run build" by default.
     default: |
       npm ci
       npm run build
     required: false
+
+  php_version:
+    description: PHP version to install via setup-php.
+    default: '8.3'
+    required: false
+
+  php_extensions:
+    description: Additional PHP extensions to enable (comma-separated list).
+    default: ''
+    required: false
+
+  php_ini_values:
+    description: Extra php.ini values (comma-separated key=value pairs).
+    default: ''
+    required: false
+
+  run_composer_install:
+    description: Set to true to run composer install.
+    default: 'false'
+    required: false
+
+  composer_script:
+    description: Command to run to install Composer dependencies. "composer install" by default.
+    default: |
+      composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+    required: false
+
   commit_user_name:
     description: Name to use for release branch commit author.
     default: "Your friendly neighborhood GH Actions Bot"
     required: false
+
   commit_user_email:
     description: Email to use for release branch commit email.
     default: "<>"
@@ -55,6 +86,20 @@ runs:
         git merge -s ours '${{ inputs.source_branch }}'
         git diff --binary '${{ inputs.source_branch }}' | git apply -R --index
         git commit --amend -m "Merge branch '${{ inputs.source_branch }}' into '${{ inputs.release_branch }}'"
+
+    - name: Set up PHP
+      if: ${{ inputs.run_composer_install == 'true' }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php_version }}
+        extensions: ${{ inputs.php_extensions }}
+        ini-values: ${{ inputs.php_ini_values }}
+        coverage: none
+
+    - name: Composer install
+      if: ${{ inputs.run_composer_install == 'true' }}
+      shell: bash
+      run: ${{ inputs.composer_script }}
 
     - name: Build code
       shell: bash
