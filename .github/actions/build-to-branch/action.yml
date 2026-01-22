@@ -132,6 +132,11 @@ runs:
           done
         fi
 
+        if [ -d vendor ]; then
+          echo "Adding vendor directory"
+          git add -f vendor
+        fi
+
         # Re-add built assets (they may have been removed)
         git add -f ${{ inputs.built_asset_paths }}
 
