@@ -22,7 +22,7 @@ on:
       build_script:
         description: Command to run to build code. "npm ci; npm run build" by default.
         default: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
         required: false
         type: string
