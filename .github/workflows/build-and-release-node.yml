@@ -20,7 +20,7 @@ on:
         type: string
       # Optional inputs.
       build_script:
-        description: Command to run to build code. "npm ci; npm run build" by default.
+        description: Command to run to build code. "npm ci --ignore-scripts; npm run build" by default.
         default: |
           npm ci --ignore-scripts
           npm run build
@@ -43,6 +43,11 @@ on:
       plugin_file:
         description: Path to main WordPress plugin file (for tagging)
         required: true
+        type: string
+      plugin_slug:
+        description: Plugin folder/zip basename. Defaults to the repository name.
+        required: false
+        default: ''
         type: string
       php_version:
         description: PHP version to install via setup-php.
@@ -104,8 +109,19 @@ jobs:
           composer_script: ${{ inputs.composer_script }}
 
       - name: Tag and release
+        id: tag_and_release
         uses: eighteen73/github-actions/.github/actions/tag-and-release@main
         with:
           target_branch: ${{ inputs.release_branch }}
+          source_branch: ${{ inputs.source_branch }}
           plugin_file: ${{ inputs.plugin_file }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package zip
+        uses: eighteen73/github-actions/.github/actions/package-zip@main
+        with:
+          slug: ${{ inputs.plugin_slug != '' && inputs.plugin_slug || github.event.repository.name }}
+          source_directory: .
+          upload_artifact: true
+          release_tag: ${{ steps.tag_and_release.outputs.tag }}
           github_token: ${{ secrets.GITHUB_TOKEN }}

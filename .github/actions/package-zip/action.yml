@@ -1,0 +1,75 @@
+name: "Package Zip"
+description: "Create a zip file for a release."
+
+inputs:
+  slug:
+    description: "Folder and zip basename (e.g. my-plugin-name)"
+    required: true
+  source_directory:
+    description: "Root to package (usually the checkout root of the release branch)"
+    default: "."
+  upload_artifact:
+    description: "Upload as a workflow artifact"
+    default: "true"
+  artifact_name:
+    description: "Artifact name (defaults to slug)"
+    default: ""
+  release_tag:
+    description: "If set, also attach the zip to this GitHub release tag"
+    default: ""
+  github_token:
+    description: "GitHub token used when attaching the zip to a release"
+    default: ${{ github.token }}
+
+outputs:
+  zip_path:
+    description: "Absolute path to the generated zip"
+    value: ${{ steps.package.outputs.zip_path }}
+  zip_name:
+    description: "Zip filename"
+    value: ${{ steps.package.outputs.zip_name }}
+
+runs:
+  using: composite
+  steps:
+    - name: Package zip
+      id: package
+      shell: bash
+      run: |
+        set -euo pipefail
+        SLUG="${{ inputs.slug }}"
+        SRC="${{ inputs.source_directory }}"
+        OUT_DIR="${RUNNER_TEMP}/zip"
+        STAGE="${OUT_DIR}/${SLUG}"
+        ZIP_NAME="${SLUG}.zip"
+
+        rm -rf "${OUT_DIR}"
+        mkdir -p "${STAGE}"
+
+        # Copy built files; exclude VCS only (.gitattributes cleanup already done on release branch)
+        rsync -a --exclude '.git' "${SRC}/" "${STAGE}/"
+
+        (
+          cd "${OUT_DIR}"
+          zip -r "${ZIP_NAME}" "${SLUG}"
+        )
+
+        echo "zip_path=${OUT_DIR}/${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+        echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload artifact
+      if: inputs.upload_artifact == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact_name || inputs.slug }}
+        path: ${{ steps.package.outputs.zip_path }}
+        if-no-files-found: error
+
+    - name: Attach zip to GitHub release
+      if: inputs.release_tag != ''
+      uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+      with:
+        tag_name: ${{ inputs.release_tag }}
+        files: ${{ steps.package.outputs.zip_path }}
+        fail_on_unmatched_files: true
+        token: ${{ inputs.github_token }}

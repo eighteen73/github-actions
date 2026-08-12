@@ -8,9 +8,21 @@ inputs:
   target_branch:
     description: "Branch to tag (e.g., release)."
     required: true
+  source_branch:
+    description: "Branch to generate release notes from (where real merges land, e.g. main)."
+    required: false
+    default: "main"
   github_token:
     description: "GitHub token for creating tags and releases"
     required: true
+
+outputs:
+  version:
+    description: "Extracted version from the plugin file"
+    value: ${{ steps.version.outputs.version }}
+  tag:
+    description: "Generated git tag (prefixed with v)"
+    value: ${{ steps.version.outputs.tag }}
 
 runs:
   using: "composite"
@@ -59,6 +71,38 @@ runs:
       shell: bash
       run: exit 1
 
+    - name: Generate release notes from source branch
+      id: notes
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -euo pipefail
+
+        TAG="${{ steps.version.outputs.tag }}"
+        SOURCE="${{ inputs.source_branch }}"
+
+        git fetch origin "${SOURCE}" --tags
+
+        # Latest existing version tag becomes the notes baseline (new tag is not created yet).
+        PREV_TAG="$(git tag -l 'v*' --sort=-v:refname | head -n1 || true)"
+
+        ARGS=( -f "tag_name=${TAG}" -f "target_commitish=${SOURCE}" )
+        if [ -n "${PREV_TAG}" ]; then
+          echo "Generating notes from ${PREV_TAG}..${SOURCE}"
+          ARGS+=( -f "previous_tag_name=${PREV_TAG}" )
+        else
+          echo "No previous tag found; generating notes up to ${SOURCE}"
+        fi
+
+        BODY="$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${ARGS[@]}" --jq .body)"
+
+        {
+          echo "body<<EOF"
+          printf '%s\n' "${BODY}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Create and push tag
       shell: bash
       run: |
@@ -75,7 +119,7 @@ runs:
       with:
         tag: ${{ steps.version.outputs.tag }}
         name: ${{ steps.version.outputs.tag }}
-        body: "Automated release of version ${{ steps.version.outputs.version }}"
+        body: ${{ steps.notes.outputs.body }}
         draft: false
         prerelease: false
         token: ${{ inputs.github_token }}
