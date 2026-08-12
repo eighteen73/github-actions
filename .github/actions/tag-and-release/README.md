@@ -17,7 +17,6 @@ Composite action that creates a Git tag and a GitHub release based on the versio
 ## Outputs
 - `version`: Extracted version from the plugin file.
 - `tag`: Generated git tag (prefixed with `v`).
-- `tag_exists`: Boolean indicating whether the tag already exists.
 
 ## Usage
 

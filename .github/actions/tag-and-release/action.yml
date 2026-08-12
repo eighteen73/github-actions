@@ -12,6 +12,14 @@ inputs:
     description: "GitHub token for creating tags and releases"
     required: true
 
+outputs:
+  version:
+    description: "Extracted version from the plugin file"
+    value: ${{ steps.version.outputs.version }}
+  tag:
+    description: "Generated git tag (prefixed with v)"
+    value: ${{ steps.version.outputs.tag }}
+
 runs:
   using: "composite"
   steps:
