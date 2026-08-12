@@ -113,6 +113,7 @@ jobs:
         uses: eighteen73/github-actions/.github/actions/tag-and-release@main
         with:
           target_branch: ${{ inputs.release_branch }}
+          source_branch: ${{ inputs.source_branch }}
           plugin_file: ${{ inputs.plugin_file }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -8,6 +8,7 @@ This workflow automates installing dependencies, building a Node.js project, com
 - Merges a source branch into a release branch and builds project assets.
 - Force-adds built assets to the release branch, overriding `.gitignore`.
 - Extracts the plugin version and creates a Git tag and GitHub release.
+- Generates release notes from `source_branch` (e.g. `main`) since the previous tag, not from release-branch build commits.
 - Packages `{plugin_slug}.zip` from the cleaned release branch and attaches it to the GitHub Release (also uploads a workflow artifact).
 
 ## Key Inputs
