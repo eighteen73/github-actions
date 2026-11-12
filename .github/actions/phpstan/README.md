@@ -24,7 +24,7 @@ jobs:
   phpstan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: your-org/github-actions/.github/actions/phpstan@v1
         with:
           working-directory: wp-content/plugins/example-plugin

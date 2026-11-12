@@ -33,8 +33,13 @@ inputs:
     required: false
 
   node-version:
-    description: Node.js version to provision via setup-node.
+    description: Node.js version to provision via setup-node. Ignored when node-version-file is set.
     default: '24'
+    required: false
+
+  node-version-file:
+    description: File holding the Node.js version (e.g. .nvmrc), relative to working-directory. When set, it's used instead of node-version.
+    default: ''
     required: false
 
   npm-cache-key:
@@ -111,15 +116,17 @@ runs:
         fi
 
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: ${{ inputs.node-version }}
+        # setup-node prefers node-version, so it's left empty when a file is given.
+        node-version: ${{ inputs.node-version-file == '' && inputs.node-version || '' }}
+        node-version-file: ${{ inputs.node-version-file != '' && format('{0}/{1}', inputs.working-directory, inputs.node-version-file) || '' }}
         cache: npm
         cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
     - name: Cache Composer dependencies
       if: ${{ inputs.run-phpcs == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ inputs.working-directory }}/vendor
