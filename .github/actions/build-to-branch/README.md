@@ -28,7 +28,7 @@ jobs:
   build-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: eighteen73/github-actions/.github/actions/build-to-branch@v1
         with:
           source_branch: main

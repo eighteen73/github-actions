@@ -12,6 +12,7 @@ Composite action that provisions PHP and Node toolchains, installs dependencies,
 - `php-version` (default `8.3`): PHP runtime for `phpcs`.
 - `composer-install` / `composer-args`: control Composer bootstrap behaviour (dev dependencies are installed by default).
 - `node-version` (default `24`) and `npm-install-command`: manage Node toolchain setup.
+- `node-version-file` (e.g. `.nvmrc`): take the Node version from a file in the project instead of `node-version`, so CI matches the project's own version.
 - `run-phpcs`, `run-eslint`, `run-stylelint`: toggle individual lint tasks (all enabled by default).
 - `phpcs-standard` (leave empty to use local `phpcs.xml`), `eslint-paths`, `stylelint-paths`: override lint targets and rules without editing the action.
 
@@ -27,7 +28,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: eighteen73/github-actions/.github/actions/lint@v1
         with:
           working-directory: wp-content/plugins/example-plugin

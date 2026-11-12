@@ -27,7 +27,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: eighteen73/github-actions/.github/actions/tag-and-release@v1
         with:
           plugin_file: "wp-content/plugins/example-plugin/example-plugin.php"

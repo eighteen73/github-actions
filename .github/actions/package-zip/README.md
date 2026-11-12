@@ -37,7 +37,7 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: release
       - uses: eighteen73/github-actions/.github/actions/package-zip@main
